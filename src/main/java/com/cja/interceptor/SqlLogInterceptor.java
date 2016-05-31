@@ -11,6 +11,8 @@ import javax.persistence.Column;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.hibernate.CallbackException;
 import org.hibernate.EmptyInterceptor;
 import org.hibernate.Session;
@@ -24,16 +26,18 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
-	Session session;
 	//TODO注意线程安全
 	private Set<String> dbSql = new HashSet<String>();
+	private Session session;
+	private final Log log = LogFactory.getLog(this.getClass());
+	
 	public void setSession(Session session) {
 		this.session = session;
 	}
 
 	public boolean onSave(Object entity, Serializable id, Object[] state,
 			String[] propertyNames, Type[] types) throws CallbackException {
-		System.out.println("onSave");
+		log.info("onSave");
 
 		Class clas = entity.getClass();
 		String tableName = getTableName(clas);
@@ -66,7 +70,7 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		
 		insertSql.append(values);
 		
-		System.out.println(" insert sql:"+insertSql.toString());
+		log.info(" insert sql:"+insertSql.toString());
 		
 		dbSql.add(insertSql.toString());
 
@@ -78,7 +82,7 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 			Object[] currentState, Object[] previousState,
 			String[] propertyNames, Type[] types) throws CallbackException {
 
-		System.out.println("onFlushDirty");
+		log.info("onFlushDirty");
 		Class clas = entity.getClass();
 		String tableName = getTableName(clas);
 
@@ -101,7 +105,7 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		String idCloumnName = getIdColumnName(clas);
 		updateSql.append(" where ").append(idCloumnName).append(" = ").append(id);
 		
-		System.out.println(" update sql:"+updateSql.toString());
+		log.info(" update sql:"+updateSql.toString());
 		
 		dbSql.add(updateSql.toString());
 
@@ -112,8 +116,18 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 	public void onDelete(Object entity, Serializable id, Object[] state,
 			String[] propertyNames, Type[] types) throws CallbackException {
 
-		System.out.println("onDelete");
-
+		log.info("onDelete");
+		Class clas = entity.getClass();
+		String tableName = getTableName(clas);
+		StringBuffer deleteSql = new StringBuffer(30);
+		deleteSql.append("delete from  ").append(tableName).append(" where ");
+		
+		String idCloumnName = getIdColumnName(clas);
+		deleteSql.append(idCloumnName).append(" = ").append(id);
+		
+		log.info(" delete sql:"+deleteSql.toString());
+		
+		dbSql.add(deleteSql.toString());
 	}
 
 	// called before commit into database
@@ -123,13 +137,13 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 
 	// called after committed into database
 	public void postFlush(Iterator iterator) {
-		System.out.println("postFlush");
+		log.info("postFlush");
 		try {
 			for (Iterator<String> it = dbSql.iterator(); it.hasNext();) {
 				String sql = it.next();
 				System.out.println("postFlush - database");
 				
-				SqlLogUtil.LogIt(sql, session.connection());
+				SqlLogUtil.LogIt(sql,session.connection());
 			}	
 		} finally {
 			dbSql.clear();
@@ -141,7 +155,7 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		String result = null;
 		Table table = (Table) clas.getAnnotation(Table.class);
 		result = table.name();
-		System.out.println("table name :" + result);
+		log.info("table name :" + result);
 		return result;
 	}
 	
@@ -172,7 +186,7 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 			}
 			
 		}
-		
+		log.info("table id name :" + result);
 		return result;
 	}
  /**
