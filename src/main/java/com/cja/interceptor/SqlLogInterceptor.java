@@ -190,7 +190,7 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		return result;
 	}
  /**
-  * 获取
+  * 获取属性名称对应列名
   * @param clas
   * @param propertyName
   * @return
