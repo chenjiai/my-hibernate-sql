@@ -1,4 +1,4 @@
-package com.cja.app;
+package com.cja.app.model;
 
 import java.util.Date;
 

@@ -7,6 +7,7 @@ import org.hibernate.Query;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 
+import com.cja.app.model.User;
 import com.cja.interceptor.SqlLogInterceptor;
 import com.cja.persistence.HibernateUtil;
 

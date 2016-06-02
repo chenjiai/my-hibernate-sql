@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
+import javax.annotation.Resource;
 import javax.persistence.Column;
 import javax.persistence.Id;
 import javax.persistence.Table;
@@ -16,20 +17,24 @@ import org.apache.commons.logging.LogFactory;
 import org.hibernate.CallbackException;
 import org.hibernate.EmptyInterceptor;
 import org.hibernate.Session;
+import org.hibernate.Transaction;
 import org.hibernate.type.Type;
+import org.springframework.stereotype.Service;
 
-import com.cja.util.SqlLogUtil;
+import com.cja.app.dao.SqlLogDao;
 
+@Service("sqlLogInterceptor")
 public class SqlLogInterceptor extends EmptyInterceptor {
 
 	/**
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
-	//TODO注意线程安全
-	private Set<String> dbSql = new HashSet<String>();
-	private Session session;
 	private final Log log = LogFactory.getLog(this.getClass());
+	private static ThreadLocal<Set<String>> localDbSql = new ThreadLocal<Set<String>>();
+	private Session session;
+	@Resource(name="sqlLogDao")
+	private SqlLogDao sqlLogDao;
 	
 	public void setSession(Session session) {
 		this.session = session;
@@ -51,13 +56,14 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		int propertySize = propertyNames.length;
 		for (int i = 0; i < propertySize; i++) {
 			String propertyName = propertyNames[i];
+			Object propertyValue = state[i];
 			Type type = types[i];
 			
 			String cloumnName = getColumnName(clas, propertyName);
-			String value = getColumnValue(clas, propertyNames[i],entity,type);
+			String cloumnValue = convertToString(propertyValue,type);
 			
 			insertSql.append(cloumnName);
-			values.append(value);
+			values.append(cloumnValue);
 			
 			if (i < propertySize - 1) {
 				insertSql.append(",");
@@ -72,8 +78,9 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		
 		log.info(" insert sql:"+insertSql.toString());
 		
-		dbSql.add(insertSql.toString());
-
+		Set<String> localSet = getLocalSet();
+		localSet.add(insertSql.toString());
+		localDbSql.set(localSet);
 		return false;
 
 	}
@@ -92,11 +99,13 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		int propertySize = propertyNames.length;
 		for (int i = 0; i < propertySize; i++) {
 			String propertyName = propertyNames[i];
+			Object propertyValue = currentState[i];
 			Type type = types[i];
 			
 			String cloumnName = getColumnName(clas, propertyName);
-			String value = getColumnValue(clas, propertyNames[i],entity,type);
-			updateSql.append( cloumnName + "=" + value );
+			String cloumnValue = convertToString(propertyValue,type);
+			updateSql.append( cloumnName + "=" + cloumnValue );
+			
 			if(i<propertySize-1){
 				updateSql.append(",");
 			}
@@ -107,7 +116,9 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		
 		log.info(" update sql:"+updateSql.toString());
 		
-		dbSql.add(updateSql.toString());
+		Set<String> localSet = getLocalSet();
+		localSet.add(updateSql.toString());
+		localDbSql.set(localSet);
 
 		return false;
 
@@ -127,7 +138,8 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		
 		log.info(" delete sql:"+deleteSql.toString());
 		
-		dbSql.add(deleteSql.toString());
+		Set<String> localSet = getLocalSet();
+		localSet.add(deleteSql.toString());
 	}
 
 	// called before commit into database
@@ -138,18 +150,32 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 	// called after committed into database
 	public void postFlush(Iterator iterator) {
 		log.info("postFlush");
-		try {
-			for (Iterator<String> it = dbSql.iterator(); it.hasNext();) {
+		Set<String> localSqlSet = getLocalSet();
+		try { 
+			for (Iterator<String> it = localSqlSet.iterator(); it.hasNext();) {
 				String sql = it.next();
 				System.out.println("postFlush - database");
 				
-				SqlLogUtil.LogIt(sql,session.connection());
+				//SqlLogUtil.LogIt(sql,session.connection());
+				sqlLogDao.addSqlLog(sql);
 			}	
-		} finally {
-			dbSql.clear();
+		}catch(Exception e){
+			log.error("插入操作日志异常:",e);
+		}finally {
+			localSqlSet.clear();
 		}
 	}
 
+	public void afterTransactionBegin(Transaction tx) {
+		log.info("afterTransactionBegin");
+	}
+	public void afterTransactionCompletion(Transaction tx) {
+		log.info("afterTransactionCompletion");
+	}
+	public void beforeTransactionCompletion(Transaction tx) {
+		log.info("beforeTransactionCompletion");
+	}
+	
 	@SuppressWarnings("unchecked")
 	private String getTableName(@SuppressWarnings("rawtypes") Class clas) {
 		String result = null;
@@ -211,7 +237,14 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		}
 		return result;
 	}
-
+	/**
+	 * 获取列值
+	 * @param clas
+	 * @param propertyName
+	 * @param obj
+	 * @param type
+	 * @return
+	 */
 	private String getColumnValue(Class clas, String propertyName, Object obj,Type type) {
 		String result = null;
 		try {
@@ -234,7 +267,12 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		}
 		return result;
 	}
-
+	/**
+	 * 转为String
+	 * @param value
+	 * @param type
+	 * @return
+	 */
 	private String convertToString(Object value, Type type) {
 		String result = null;
 		if (value == null) {
@@ -253,5 +291,16 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 		//result = value.toString();
 		return result;
 	}
-
+	
+	/**
+	 *  获取当前线程变量值
+	 * @return
+	 */
+	private Set<String> getLocalSet(){
+		Set<String> localSet = localDbSql.get();
+		if(localSet==null){
+			localSet = new HashSet<String>();
+		}
+		return localSet;
+	}
 }

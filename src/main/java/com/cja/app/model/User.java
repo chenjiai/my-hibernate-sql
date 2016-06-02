@@ -1,4 +1,4 @@
-package com.cja.app;
+package com.cja.app.model;
 
 import java.math.BigDecimal;
 import java.util.Date;

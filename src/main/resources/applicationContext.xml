@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:jee="http://www.springframework.org/schema/jee" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.5.xsd http://www.springframework.org/schema/jee http://www.springframework.org/schema/jee/spring-jee-2.5.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd"
+	default-lazy-init="false"> 
+    
+	<!-- 使用annotation 自动注册bean,并检查@Required,@Autowired的属性已被注入,为提高性能，最后还需设置include-filter -->
+    <context:component-scan base-package="com.cja" />
+    
+	<!-- 数据源配置 -->
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" lazy-init="true">
+        <property name="driverClassName"><value>com.mysql.jdbc.Driver</value></property>
+		<property name="url"><value>jdbc:mysql://localhost:3306/sqllog</value></property>
+		<property name="username"><value>root</value></property>
+		<property name="password"><value>root</value></property>			
+	</bean>
+	
+	<!-- sessionFactory配置 -->
+    <bean id="sessionFactory" class="org.springframework.orm.hibernate3.annotation.AnnotationSessionFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+        <property name="namingStrategy">
+            <bean class="org.hibernate.cfg.ImprovedNamingStrategy" />
+        </property>
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">org.hibernate.dialect.MySQLDialect</prop>
+                <prop key="hibernate.show_sql">true</prop>
+                <prop key="hibernate.cache.use_query_cache">false</prop>
+                <prop key="hibernate.use_outer_join">false</prop>
+				<prop key="hibernate.query.substitutions">true=1, false=0</prop>                
+            </props>
+        </property>
+        <property name="packagesToScan">
+            <list>
+                <value>com.cja</value>
+            </list>
+        </property>
+    </bean>
+    
+    <!-- 事务管理配置 -->
+    <bean id="transactionManager" class="org.springframework.orm.hibernate3.HibernateTransactionManager">
+        <property name="sessionFactory" ref="sessionFactory" />
+        <!-- 操作日志拦截器 -->
+        <property name="entityInterceptor" ref="sqlLogInterceptor" />
+    </bean>
+    
+    <tx:annotation-driven transaction-manager="transactionManager" />
+    
+</beans>

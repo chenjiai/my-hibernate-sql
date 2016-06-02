@@ -5,7 +5,7 @@ import java.util.Date;
 
 import org.hibernate.Session;
 
-import com.cja.app.SqlLog;
+import com.cja.app.model.SqlLog;
 import com.cja.persistence.HibernateUtil;
 
 public class SqlLogUtil{

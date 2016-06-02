@@ -1,4 +1,4 @@
-package com.cja.common;
+package com.cja.app;
 
 import junit.framework.Test;
 import junit.framework.TestCase;
