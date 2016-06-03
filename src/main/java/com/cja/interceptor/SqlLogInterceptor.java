@@ -63,7 +63,7 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 			String cloumnValue = convertToString(propertyValue,type);
 			
 			insertSql.append(cloumnName);
-			values.append(cloumnValue);
+			values.append("'"+cloumnValue+"'");
 			
 			if (i < propertySize - 1) {
 				insertSql.append(",");
@@ -104,7 +104,7 @@ public class SqlLogInterceptor extends EmptyInterceptor {
 			
 			String cloumnName = getColumnName(clas, propertyName);
 			String cloumnValue = convertToString(propertyValue,type);
-			updateSql.append( cloumnName + "=" + cloumnValue );
+			updateSql.append( cloumnName + "= '" + cloumnValue+"'");
 			
 			if(i<propertySize-1){
 				updateSql.append(",");
